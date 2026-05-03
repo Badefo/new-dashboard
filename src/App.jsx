@@ -2,10 +2,13 @@ import { useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
+import './App.css'
 
 function App() {
   const [data, setData] = useState([12, 19, 15, 17, 24, 23, 28])
-  const [aiTip, setAiTip] = useState('Нажми "Анализ"')
+  const [aiTip, setAiTip] = useState('🧠 Нажми "AI Анализ" для прогноза и рекомендаций')
+  const [loading, setLoading] = useState(false)
+  const [forecast, setForecast] = useState(null)
 
   const chartData = data.map((v, i) => ({ день: i + 1, продажи: v }))
 
@@ -30,41 +33,137 @@ function App() {
     XLSX.writeFile(wb, `report_${Date.now()}.xlsx`)
   }
 
-  const analyze = () => {
+  const analyzeWithGigaChat = async () => {
+    setLoading(true)
+    setAiTip('🤔 GigaChat анализирует данные...')
+
     const avg = (data.reduce((a, b) => a + b, 0) / data.length).toFixed(1)
+    const maxValue = Math.max(...data)
+    const minValue = Math.min(...data)
     const trend = data[data.length - 1] > data[0] ? 'рост' : 'падение'
-    setAiTip(`📊 Среднее: ${avg}. Тренд: ${trend}. Рекомендация: ${trend === 'рост' ? 'увеличивайте запасы' : 'проверьте маркетинг'}.`)
+
+    try {
+      const response = await fetch('http://localhost:3001/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          salesData: data, 
+          avg: avg, 
+          max: maxValue, 
+          min: minValue, 
+          trend: trend 
+        }),
+      })
+
+      const result = await response.json()
+      
+      if (result.advice) {
+        setAiTip(result.advice)
+        if (result.forecast) setForecast(result.forecast)
+      } else {
+        setAiTip('❌ Ошибка: ' + (result.error || 'неизвестная ошибка'))
+      }
+    } catch (error) {
+      console.error('Ошибка:', error)
+      setAiTip('❌ Ошибка соединения. Запусти node server.js')
+    }
+    
+    setLoading(false)
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>📊 AI Дашборд</h1>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
-        <label style={{ background: '#4CAF50', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', color: 'white' }}>
-          📂 Загрузить Excel
+    <div className="dashboard">
+      <div className="header">
+        <h1>🤖 AI Аналитик Дашборд + GigaChat</h1>
+        <p>Загрузи данные, AI проанализирует и даст прогноз</p>
+      </div>
+
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-icon">📊</div>
+          <div className="stat-value">{(data.reduce((a, b) => a + b, 0) / data.length).toFixed(1)}</div>
+          <div className="stat-label">Среднее</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">📈</div>
+          <div className="stat-value">{Math.max(...data)}</div>
+          <div className="stat-label">Максимум</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">📉</div>
+          <div className="stat-value">{Math.min(...data)}</div>
+          <div className="stat-label">Минимум</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">📐</div>
+          <div className="stat-value">{Math.max(...data) - Math.min(...data)}</div>
+          <div className="stat-label">Размах</div>
+        </div>
+      </div>
+
+      <div className="controls">
+        <label className="btn">
+          📂 Загрузить файл
           <input type="file" accept=".xlsx,.csv" onChange={handleUpload} hidden />
         </label>
-        <button onClick={() => setData(data.map(() => Math.floor(Math.random() * 50) + 10))}>🎲 Случайные</button>
-        <button onClick={exportExcel}>💾 Экспорт</button>
-        <button onClick={analyze}>🤖 AI Анализ</button>
+        <button className="btn" onClick={() => setData(data.map(() => Math.floor(Math.random() * 50) + 10))}>
+          🎲 Случайные данные
+        </button>
+        <button className="btn" onClick={exportExcel}>
+          💾 Экспорт в Excel
+        </button>
+        <button className="btn btn-primary" onClick={analyzeWithGigaChat} disabled={loading}>
+          {loading ? '⏳ Думаю...' : '🧠 AI Анализ (GigaChat)'}
+        </button>
       </div>
-      <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-        <div style={{ background: '#2196F3', color: 'white', padding: 12, borderRadius: 8 }}>Среднее: {(data.reduce((a, b) => a + b, 0) / data.length).toFixed(1)}</div>
-        <div style={{ background: '#4CAF50', color: 'white', padding: 12, borderRadius: 8 }}>Макс: {Math.max(...data)}</div>
-        <div style={{ background: '#FF9800', color: 'white', padding: 12, borderRadius: 8 }}>Мин: {Math.min(...data)}</div>
+
+      <div className="chart-container">
+        <div className="chart-title">📈 Динамика продаж</div>
+        <ResponsiveContainer width="100%" height={350}>
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+            <XAxis dataKey="день" stroke="rgba(255,255,255,0.5)" />
+            <YAxis stroke="rgba(255,255,255,0.5)" />
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', border: '1px solid #00ffc3' }} />
+            <Legend wrapperStyle={{ color: 'white' }} />
+            <Line type="monotone" dataKey="продажи" stroke="#00ffc3" strokeWidth={2} dot={{ fill: '#00ffc3', r: 4 }} />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="день" />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Line type="monotone" dataKey="продажи" stroke="#2196F3" strokeWidth={2} />
-        </LineChart>
-      </ResponsiveContainer>
-      <div style={{ marginTop: 24, padding: 16, background: '#f0f0f0', borderRadius: 12 }}>
-        <strong>🤖 AI совет:</strong> {aiTip}
+
+      {forecast && (
+        <div className="glass-card" style={{ marginBottom: 20, textAlign: 'center' }}>
+          <div className="stat-icon">📈 ПРОГНОЗ НА 3 ДНЯ</div>
+          <div style={{ display: 'flex', gap: 20, justifyContent: 'center', marginTop: 10 }}>
+            {forecast.map((f, i) => (
+              <div key={i}>
+                <div style={{ fontSize: 24, fontWeight: 'bold', color: '#00ffc3' }}>{f}</div>
+                <div style={{ fontSize: 12, color: '#aaa' }}>День {i + 1}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="ai-card">
+        <div className="ai-header">
+          <div className="ai-icon"><span>🧠</span></div>
+          <div className="ai-title">Анализ и рекомендации GigaChat</div>
+        </div>
+        <div className="ai-content">
+          {loading ? (
+            <div className="loading">
+              <div className="spinner"></div>
+              <span>Анализирую данные...</span>
+            </div>
+          ) : (
+            aiTip.split('\n').map((line, i) => <p key={i}>{line}</p>)
+          )}
+        </div>
+      </div>
+
+      <div className="footer">
+        AI Дашборд — аналитика с прогнозированием
       </div>
     </div>
   )
