@@ -43,7 +43,7 @@ function App() {
     const trend = data[data.length - 1] > data[0] ? 'рост' : 'падение'
 
     try {
-      const response = await fetch('http://localhost:3001/api/analyze', {
+      const response = await fetch('https://gigachat-proxy-ili-liuboe-drugoe.onrender.com/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
