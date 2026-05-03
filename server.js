@@ -56,7 +56,7 @@ function findAnomalies(data) {
 
 app.post('/api/analyze', async (req, res) => {
   console.log('📥 Запрос получен');
-  const { salesData, avg, max, min, trend } = req.body;
+  const { salesData, avg, max, min, trend, dataType } = req.body;
   
   const forecast = calculateForecast(salesData);
   const anomalies = findAnomalies(salesData);
@@ -66,7 +66,7 @@ app.post('/api/analyze', async (req, res) => {
                        (firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length) 
                        ? 'рост во второй половине периода' : 'спад во второй половине периода';
 
-  const prompt = `Ты бизнес-аналитик. Данные: ${salesData.join(', ')}. Среднее: ${avg}, Тренд: ${trend}. Прогноз: ${forecast.join(', ')}. Аномалии: ${anomalies.length}. Сезонность: ${seasonality}. Дай анализ и рекомендации (4-5 предложений).`;
+  const prompt = `Ты бизнес-аналитик. Анализируешь ${dataType || 'продажи'}. Данные: ${salesData.join(', ')}. Среднее: ${avg}, Макс: ${max}, Мин: ${min}, Тренд: ${trend}. Прогноз: ${forecast.join(', ')}. Аномалии: ${anomalies.length > 0 ? anomalies.map(a => `день ${a.day} (${a.value})`).join(', ') : 'нет'}. Сезонность: ${seasonality}. Дай анализ и рекомендации (4-5 предложений) на русском языке.`;
 
   try {
     const token = await getAccessToken();

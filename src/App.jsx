@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
@@ -12,6 +12,9 @@ function App() {
   const [anomalies, setAnomalies] = useState(null)
   const [seasonality, setSeasonality] = useState(null)
   const [theme, setTheme] = useState('light')
+  const [activeDashboard, setActiveDashboard] = useState('sales')
+  const [bitcoinData, setBitcoinData] = useState([])
+  const [btcLoading, setBtcLoading] = useState(false)
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'
@@ -19,7 +22,35 @@ function App() {
     document.documentElement.setAttribute('data-theme', newTheme)
   }
 
-  const chartData = data.map((v, i) => ({ день: i + 1, продажи: v }))
+  const fetchBitcoinData = async () => {
+    setBtcLoading(true)
+    try {
+      const response = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=7')
+      const result = await response.json()
+      const prices = result.prices.slice(-7).map((item, index) => ({
+        день: index + 1,
+        цена: Math.round(item[1])
+      }))
+      setBitcoinData(prices.map(p => p.цена))
+      setAiTip('📊 Данные биткоина загружены! Нажми "AI Анализ" для анализа рынка.')
+    } catch (error) {
+      console.error('Ошибка загрузки биткоина:', error)
+      setAiTip('❌ Ошибка загрузки данных биткоина')
+    }
+    setBtcLoading(false)
+  }
+
+  useEffect(() => {
+    if (activeDashboard === 'bitcoin' && bitcoinData.length === 0) {
+      fetchBitcoinData()
+    }
+  }, [activeDashboard])
+
+  const currentData = activeDashboard === 'sales' ? data : bitcoinData
+  const currentChartData = currentData.map((v, i) => ({ 
+    день: i + 1, 
+    продажи: v
+  }))
 
   const handleUpload = (e) => {
     const file = e.target.files[0]
@@ -36,7 +67,7 @@ function App() {
   }
 
   const exportExcel = () => {
-    const ws = XLSX.utils.aoa_to_sheet([['День', 'Продажи'], ...data.map((v, i) => [i + 1, v])])
+    const ws = XLSX.utils.aoa_to_sheet([['День', 'Продажи'], ...currentData.map((v, i) => [i + 1, v])])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Отчет')
     XLSX.writeFile(wb, `report_${Date.now()}.xlsx`)
@@ -46,21 +77,23 @@ function App() {
     setLoading(true)
     setAiTip('🤔 GigaChat анализирует данные...')
 
-    const avg = (data.reduce((a, b) => a + b, 0) / data.length).toFixed(1)
-    const maxValue = Math.max(...data)
-    const minValue = Math.min(...data)
-    const trend = data[data.length - 1] > data[0] ? 'рост' : 'падение'
+    const avg = (currentData.reduce((a, b) => a + b, 0) / currentData.length).toFixed(1)
+    const maxValue = Math.max(...currentData)
+    const minValue = Math.min(...currentData)
+    const trend = currentData[currentData.length - 1] > currentData[0] ? 'рост' : 'падение'
+    const dataType = activeDashboard === 'sales' ? 'продажи' : 'цена биткоина'
 
     try {
       const response = await fetch('https://gigachat-proxy-ili-liuboe-drugoe.onrender.com/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          salesData: data, 
+          salesData: currentData, 
           avg: avg, 
           max: maxValue, 
           min: minValue, 
-          trend: trend 
+          trend: trend,
+          dataType: dataType
         }),
       })
 
@@ -76,7 +109,7 @@ function App() {
       }
     } catch (error) {
       console.error('Ошибка:', error)
-      setAiTip('❌ Ошибка соединения с сервером. Запусти node server.js')
+      setAiTip('❌ Ошибка соединения с сервером')
     }
     
     setLoading(false)
@@ -90,39 +123,67 @@ function App() {
 
       <div className="header">
         <h1>🤖 AI Аналитик Дашборд + GigaChat</h1>
-        <p>Загрузи данные, AI проанализирует и даст прогноз</p>
+        <p>Загрузи данные или выбери реальные источники</p>
+      </div>
+
+      <div className="dashboard-tabs">
+        <button 
+          className={`tab-btn ${activeDashboard === 'sales' ? 'active' : ''}`}
+          onClick={() => setActiveDashboard('sales')}
+        >
+          📊 Мои продажи
+        </button>
+        <button 
+          className={`tab-btn ${activeDashboard === 'bitcoin' ? 'active' : ''}`}
+          onClick={() => setActiveDashboard('bitcoin')}
+        >
+          ₿ Биткоин 7 дней
+        </button>
       </div>
 
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon">📊</div>
-          <div className="stat-value">{(data.reduce((a, b) => a + b, 0) / data.length).toFixed(1)}</div>
+          <div className="stat-value">{(currentData.reduce((a, b) => a + b, 0) / currentData.length).toFixed(1)}</div>
           <div className="stat-label">Среднее</div>
         </div>
         <div className="stat-card">
           <div className="stat-icon">📈</div>
-          <div className="stat-value">{Math.max(...data)}</div>
+          <div className="stat-value">{Math.max(...currentData)}</div>
           <div className="stat-label">Максимум</div>
         </div>
         <div className="stat-card">
           <div className="stat-icon">📉</div>
-          <div className="stat-value">{Math.min(...data)}</div>
+          <div className="stat-value">{Math.min(...currentData)}</div>
           <div className="stat-label">Минимум</div>
         </div>
         <div className="stat-card">
           <div className="stat-icon">📐</div>
-          <div className="stat-value">{Math.max(...data) - Math.min(...data)}</div>
+          <div className="stat-value">{Math.max(...currentData) - Math.min(...currentData)}</div>
           <div className="stat-label">Размах</div>
         </div>
       </div>
 
       <div className="controls">
-        <label className="btn">
-          📂 Загрузить файл
-          <input type="file" accept=".xlsx,.csv" onChange={handleUpload} hidden />
-        </label>
-        <button className="btn" onClick={() => setData(data.map(() => Math.floor(Math.random() * 50) + 10))}>
-          🎲 Случайные данные
+        {activeDashboard === 'sales' && (
+          <label className="btn">
+            📂 Загрузить файл
+            <input type="file" accept=".xlsx,.csv" onChange={handleUpload} hidden />
+          </label>
+        )}
+        {activeDashboard === 'bitcoin' && (
+          <button className="btn" onClick={fetchBitcoinData} disabled={btcLoading}>
+            {btcLoading ? '⏳ Загрузка...' : '🔄 Обновить BTC'}
+          </button>
+        )}
+        <button className="btn" onClick={() => {
+          if (activeDashboard === 'sales') {
+            setData(data.map(() => Math.floor(Math.random() * 50) + 10))
+          } else {
+            fetchBitcoinData()
+          }
+        }}>
+          🎲 {activeDashboard === 'sales' ? 'Случайные данные' : 'Обновить BTC'}
         </button>
         <button className="btn" onClick={exportExcel}>
           💾 Экспорт в Excel
@@ -133,9 +194,9 @@ function App() {
       </div>
 
       <div className="chart-container">
-        <div className="chart-title">📈 Динамика продаж</div>
+        <div className="chart-title">📈 {activeDashboard === 'sales' ? 'Динамика продаж' : 'Цена Биткоина (USD)'}</div>
         <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={chartData}>
+          <LineChart data={currentChartData}>
             <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? '#ccc' : 'rgba(255,255,255,0.1)'} />
             <XAxis dataKey="день" stroke={theme === 'light' ? '#666' : 'rgba(255,255,255,0.5)'} />
             <YAxis stroke={theme === 'light' ? '#666' : 'rgba(255,255,255,0.5)'} />
@@ -147,7 +208,7 @@ function App() {
       </div>
 
       {forecast && (
-        <div className="glass-card" style={{ marginBottom: 20, textAlign: 'center', padding: 20, borderRadius: 20, background: 'var(--card-bg)' }}>
+        <div style={{ marginBottom: 20, textAlign: 'center', padding: 20, borderRadius: 20, background: 'var(--card-bg)' }}>
           <div className="stat-icon">📈 ПРОГНОЗ НА 3 ДНЯ</div>
           <div style={{ display: 'flex', gap: 20, justifyContent: 'center', marginTop: 10 }}>
             {forecast.map((f, i) => (
@@ -161,7 +222,7 @@ function App() {
       )}
 
       {anomalies && anomalies.length > 0 && (
-        <div className="glass-card" style={{ marginBottom: 20, textAlign: 'center', padding: 20, borderRadius: 20, background: 'var(--card-bg)' }}>
+        <div style={{ marginBottom: 20, textAlign: 'center', padding: 20, borderRadius: 20, background: 'var(--card-bg)' }}>
           <div className="stat-icon">⚠️ АНОМАЛИИ</div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
             {anomalies.map((a, i) => (
@@ -174,7 +235,7 @@ function App() {
       )}
 
       {seasonality && (
-        <div className="glass-card" style={{ marginBottom: 20, textAlign: 'center', padding: 20, borderRadius: 20, background: 'var(--card-bg)' }}>
+        <div style={{ marginBottom: 20, textAlign: 'center', padding: 20, borderRadius: 20, background: 'var(--card-bg)' }}>
           <div className="stat-icon">📅 СЕЗОННОСТЬ</div>
           <div style={{ marginTop: 10 }}>{seasonality}</div>
         </div>

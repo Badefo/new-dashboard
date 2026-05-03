@@ -35,7 +35,6 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   padding: 20px;
-  transition: background 0.3s ease;
 }
 
 .dashboard {
@@ -43,14 +42,12 @@ body {
   margin: 0 auto;
 }
 
-/* Анимация градиента */
 @keyframes gradientShift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
 
-/* Заголовок с анимацией */
 .header {
   text-align: center;
   margin-bottom: 40px;
@@ -69,7 +66,6 @@ body {
   margin-bottom: 12px;
 }
 
-/* Кнопка темы */
 .theme-toggle {
   position: fixed;
   top: 20px;
@@ -94,7 +90,39 @@ body {
   box-shadow: var(--shadow);
 }
 
-/* Карточки с анимацией */
+.dashboard-tabs {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 60px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.tab-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+.tab-btn.active {
+  background: linear-gradient(135deg, var(--accent), #764ba2);
+  color: white;
+  border: none;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -129,12 +157,6 @@ body {
   font-size: 36px;
   margin-bottom: 12px;
   display: inline-block;
-  animation: float 3s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
 }
 
 .stat-value {
@@ -151,7 +173,6 @@ body {
   color: var(--text-secondary);
 }
 
-/* Анимированные кнопки */
 .controls {
   display: flex;
   gap: 16px;
@@ -172,7 +193,6 @@ body {
   backdrop-filter: blur(8px);
   color: var(--text-primary);
   border: 1px solid var(--border);
-  letter-spacing: 0.5px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -200,7 +220,6 @@ body {
   cursor: not-allowed;
 }
 
-/* График */
 .chart-container {
   background: var(--card-bg);
   backdrop-filter: blur(10px);
@@ -208,10 +227,15 @@ body {
   padding: 20px;
   margin-bottom: 30px;
   border: 1px solid var(--border);
-  transition: all 0.3s;
 }
 
-/* AI блок с анимацией */
+.chart-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: var(--text-primary);
+}
+
 .ai-card {
   background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
   backdrop-filter: blur(10px);
@@ -241,12 +265,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: pulse 2s ease infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
 }
 
 .ai-icon span {
@@ -272,7 +290,6 @@ body {
   margin-bottom: 12px;
 }
 
-/* Загрузка */
 .loading {
   display: flex;
   align-items: center;
@@ -293,7 +310,6 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* Футер */
 .footer {
   text-align: center;
   padding: 32px;
@@ -301,7 +317,6 @@ body {
   font-size: 12px;
 }
 
-/* Анимации */
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -313,7 +328,6 @@ body {
   }
 }
 
-/* Адаптив */
 @media (max-width: 768px) {
   body {
     padding: 16px;
