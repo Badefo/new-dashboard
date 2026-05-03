@@ -5,7 +5,7 @@ import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import './App.css'
 
-const AI_SERVER_URL = 'http://localhost:10000/api/analyze';
+const AI_SERVER_URL = 'https://gigachat-proxy-ili-liuboe-drugoe.onrender.com/api/analyze';
 
 const defaultItems = [
   { id: 1, name: 'Болт М12 оцинкованный', unit: 'шт', stock: 2000, leadTime: 3, minStock: 500, consumption: [140, 160, 150, 155, 145, 165, 170], price: 12, category: 'Крепёж', supplier: 'МетизСервис' },
