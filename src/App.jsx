@@ -5,7 +5,6 @@ import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import './App.css'
 
-// ЗАМЕНИ НА СВОЙ RENDER URL (без /api/analyze в конце)
 const AI_SERVER_URL = 'https://gigachat-proxy-ili-liuboe-drugoe.onrender.com/api/analyze'
 
 const defaultItems = [
@@ -39,7 +38,7 @@ function App() {
   })
   const [aiChatOpen, setAiChatOpen] = useState(false)
   const [aiChatMessages, setAiChatMessages] = useState([
-    { role: 'agent', text: '👋 Здравствуйте! Я ИИ-агент снабжения. Выберите товар и нажмите 🤖 для анализа.' }
+    { role: 'agent', text: 'Здравствуйте! Я ИИ-агент снабжения. Выберите товар и нажмите кнопку AI для анализа.' }
   ])
 
   const users = [
@@ -78,7 +77,7 @@ function App() {
     if (!item) { setAiAdvice('❌ Выберите товар'); return }
     setAiLoading(true)
     setAiAdvice('🤔 Анализирую...')
-    
+
     const avg = avgConsumption(item.consumption)
     try {
       const response = await fetch(AI_SERVER_URL, {
@@ -94,16 +93,16 @@ function App() {
       const text = await response.text()
       let result
       try { result = JSON.parse(text) } catch { result = { advice: text } }
-      
-      setAiAdvice(result.advice || '✅ Анализ завершён')
-      setAiChatMessages(prev => [...prev, { role: 'user', text: `Анализ: ${item.name}` }, { role: 'agent', text: result.advice || 'Готово' }])
+
+      setAiAdvice(result.advice || 'Анализ завершен')
+      setAiChatMessages(prev => [...prev, { role: 'user', text: 'Анализ: ' + item.name }, { role: 'agent', text: result.advice || 'Готово' }])
       if (recommendedOrder(item) > 0) {
         const newOrder = { item: item.name, quantity: recommendedOrder(item), unit: item.unit, date: new Date().toLocaleString('ru-RU'), status: 'AI рекомендует' }
         setOrders(prev => [newOrder, ...prev].slice(0, 50))
         localStorage.setItem('procurement_orders', JSON.stringify([newOrder, ...orders].slice(0, 50)))
       }
     } catch (error) {
-      setAiAdvice('❌ Сервер AI не отвечает. Попробуйте позже.')
+      setAiAdvice('Сервер AI не отвечает. Попробуйте позже.')
     }
     setAiLoading(false)
   }
@@ -125,7 +124,7 @@ function App() {
       }))
       setItems(newItems)
       localStorage.setItem('procurement_items', JSON.stringify(newItems))
-      setAiAdvice(`✅ Загружено ${newItems.length} товаров`)
+      setAiAdvice('Загружено ' + newItems.length + ' товаров')
     }
     reader.readAsArrayBuffer(file)
   }
@@ -141,7 +140,7 @@ function App() {
     const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Товары')
-    XLSX.writeFile(wb, `inventory_${new Date().toISOString().slice(0,10)}.xlsx`)
+    XLSX.writeFile(wb, 'inventory_' + new Date().toISOString().slice(0,10) + '.xlsx')
   }
 
   const exportOrderExcel = () => {
@@ -149,13 +148,13 @@ function App() {
       'Товар': item.name, 'Остаток': item.stock, 'Точка заказа': reorderPoint(item),
       'Заказать': recommendedOrder(item), 'Ед': item.unit, 'Цена': item.price, 'Сумма': recommendedOrder(item) * item.price
     }))
-    if (orderItems.length === 0) { setAiAdvice('✅ Все товары в норме'); return }
+    if (orderItems.length === 0) { setAiAdvice('Все товары в норме'); return }
     const totalSum = orderItems.reduce((s, i) => s + i['Сумма'], 0)
     orderItems.push({ 'Товар': 'ИТОГО', 'Остаток': '', 'Точка заказа': '', 'Заказать': '', 'Ед': '', 'Цена': '', 'Сумма': totalSum })
     const ws = XLSX.utils.json_to_sheet(orderItems)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Заказ')
-    XLSX.writeFile(wb, `order_${new Date().toISOString().slice(0,10)}.xlsx`)
+    XLSX.writeFile(wb, 'order_' + new Date().toISOString().slice(0,10) + '.xlsx')
   }
 
   const exportPDF = async () => {
@@ -165,7 +164,7 @@ function App() {
     const pdf = new jsPDF('l', 'mm', 'a4')
     const w = 297, h = (canvas.height * w) / canvas.width
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, w, h)
-    pdf.save(`report_${new Date().toISOString().slice(0,10)}.pdf`)
+    pdf.save('report_' + new Date().toISOString().slice(0,10) + '.pdf')
   }
 
   const kpi = {
@@ -186,7 +185,7 @@ function App() {
       <div className="login-page">
         <div className="login-bg">
           {[...Array(15)].map((_, i) => (
-            <div key={i} className="floating-circle" style={{ left: `${Math.random()*100}%`, top: `${Math.random()*100}%`, animationDelay: `${Math.random()*6}s`, width: `${20+Math.random()*80}px`, height: `${20+Math.random()*80}px` }} />
+            <div key={i} className="floating-circle" style={{ left: Math.random()*100 + '%', top: Math.random()*100 + '%', animationDelay: Math.random()*6 + 's', width: (20+Math.random()*80) + 'px', height: (20+Math.random()*80) + 'px' }} />
           ))}
         </div>
         <div className="login-container">
@@ -207,7 +206,7 @@ function App() {
   }
 
   return (
-    <div className={`app ${theme}`}>
+    <div className={'app ' + theme}>
       <header className="top-bar">
         <div className="top-bar-left"><span className="logo">🏭 SmartProcure AI</span><span className="role-badge">{userRole}</span></div>
         <div className="top-bar-right">
@@ -218,7 +217,7 @@ function App() {
 
       <nav className="main-nav">
         {[{id:'dashboard',icon:'📊',label:'Дашборд'},{id:'stock',icon:'📦',label:'Товары'},{id:'orders',icon:'🛒',label:'Закупки'},{id:'history',icon:'📜',label:'История'}].map(tab => (
-          <button key={tab.id} className={`nav-btn ${activeTab===tab.id?'active':''}`} onClick={()=>setActiveTab(tab.id)}>{tab.icon} {tab.label}</button>
+          <button key={tab.id} className={'nav-btn' + (activeTab===tab.id?' active':'')} onClick={()=>setActiveTab(tab.id)}>{tab.icon} {tab.label}</button>
         ))}
       </nav>
 
@@ -231,7 +230,7 @@ function App() {
         </div>
 
         {aiAdvice && (
-          <div className={`ai-status ${aiAdvice.startsWith('❌')?'error':''}`}>
+          <div className={'ai-status' + (aiAdvice.startsWith('❌')?' error':'')}>
             {aiAdvice.split('\n').map((line,i)=><p key={i}>{line}</p>)}
             <button className="ai-close" onClick={()=>setAiAdvice('')}>✕</button>
           </div>
@@ -267,20 +266,20 @@ function App() {
         {activeTab==='stock' && (
           <div className="tab-content">
             <div className="table-container">
-              <div className="table-header"><h3>📋 Складские остатки</h3><span className="hint">Выберите товар → нажмите 🤖</span></div>
+              <div className="table-header"><h3>📋 Складские остатки</h3><span className="hint">Выберите товар и нажмите AI</span></div>
               <div className="table-scroll">
                 <table>
                   <thead><tr><th>Товар</th><th>Остаток</th><th>Точка заказа</th><th>Расход/день</th><th>Покрытие</th><th>Заказ</th><th>Статус</th><th>AI</th></tr></thead>
                   <tbody>
                     {items.map(item=>{const s=getStatus(item);const sel=selectedItem?.id===item.id;return(
-                      <tr key={item.id} className={`${sel?'selected':''} row-${s}`}>
+                      <tr key={item.id} className={(sel?'selected ':'')+'row-'+s}>
                         <td><strong>{item.name}</strong><br/><small>{item.category}</small></td>
-                        <td className={`val-${s}`}>{item.stock} {item.unit}</td>
+                        <td className={'val-'+s}>{item.stock} {item.unit}</td>
                         <td>{reorderPoint(item)}</td><td>{avgConsumption(item.consumption)}</td>
                         <td>{coverageDays(item)} дн.</td>
                         <td>{recommendedOrder(item)>0?<span className="order-tag">{recommendedOrder(item)} {item.unit}</span>:<span className="order-zero">0</span>}</td>
-                        <td><span className={`dot ${s}`}></span> {s==='danger'?'Срочно':s==='warning'?'Планово':'Норма'}</td>
-                        <td><button className={`ai-btn ${sel&&aiLoading?'loading':''}`} onClick={()=>{setSelectedItem(item);analyzeItem(item)}} disabled={aiLoading}>{sel&&aiLoading?'⏳':'🤖'}</button></td>
+                        <td><span className={'dot '+s}></span> {s==='danger'?'Срочно':s==='warning'?'Планово':'Норма'}</td>
+                        <td><button className={'ai-btn'+(sel&&aiLoading?' loading':'')} onClick={()=>{setSelectedItem(item);analyzeItem(item)}} disabled={aiLoading}>{sel&&aiLoading?'⏳':'🤖'}</button></td>
                       </tr>
                     )})}
                   </tbody>
@@ -289,7 +288,7 @@ function App() {
             </div>
             {selectedItem && aiAdvice && (
               <div className="ai-panel">
-                <div className="ai-panel-header"><span>🧠 AI-анализ: {selectedItem.name}</span><button onClick={()=>{setSelectedItem(null);setAiAdvice('')}}>✕</button></div>
+                <div className="ai-panel-header"><span>AI-анализ: {selectedItem.name}</span><button onClick={()=>{setSelectedItem(null);setAiAdvice('')}}>✕</button></div>
                 <div className="ai-panel-body">{aiAdvice.split('\n').map((l,i)=><p key={i}>{l}</p>)}</div>
               </div>
             )}
@@ -299,8 +298,8 @@ function App() {
         {activeTab==='orders' && (
           <div className="tab-content">
             <div className="table-container">
-              <h3>🛒 Рекомендации по закупке</h3>
-              {items.filter(i=>recommendedOrder(i)>0).length===0 ? <div className="empty">✅ Все товары в норме</div> : (
+              <h3>Рекомендации по закупке</h3>
+              {items.filter(i=>recommendedOrder(i)>0).length===0 ? <div className="empty">Все товары в норме</div> : (
                 <div className="table-scroll">
                   <table>
                     <thead><tr><th>Товар</th><th>Остаток</th><th>Точка заказа</th><th>Заказать</th><th>Цена</th><th>Сумма</th><th>AI</th></tr></thead>
@@ -324,8 +323,8 @@ function App() {
         {activeTab==='history' && (
           <div className="tab-content">
             <div className="table-container">
-              <h3>📜 История заказов</h3>
-              {orders.length===0 ? <div className="empty">📭 История пуста. Запустите AI-анализ.</div> : (
+              <h3>История заказов</h3>
+              {orders.length===0 ? <div className="empty">История пуста</div> : (
                 <div className="history-list">
                   {orders.map((o,i)=>(
                     <div key={i} className="history-item">
@@ -340,16 +339,16 @@ function App() {
         )}
       </main>
 
-      <div className={`ai-chat ${aiChatOpen?'open':''}`}>
-        <div className="ai-chat-header" onClick={()=>setAiChatOpen(!aiChatOpen)}>🧠 ИИ-Агент {aiChatOpen?'▼':'▲'}</div>
+      <div className={'ai-chat' + (aiChatOpen?' open':'')}>
+        <div className="ai-chat-header" onClick={()=>setAiChatOpen(!aiChatOpen)}>ИИ-Агент {aiChatOpen?'▼':'▲'}</div>
         {aiChatOpen && (
           <div className="ai-chat-body">
             <div className="ai-chat-messages">
               {aiChatMessages.map((m,i)=>(
-                <div key={i} className={`msg ${m.role}`}><span className="msg-icon">{m.role==='agent'?'🤖':'👤'}</span><span className="msg-text">{m.text}</span></div>
+                <div key={i} className={'msg '+m.role}><span className="msg-icon">{m.role==='agent'?'🤖':'👤'}</span><span className="msg-text">{m.text}</span></div>
               ))}
             </div>
-            <input className="ai-chat-input" placeholder="Спросите про товар..." onKeyDown={e=>{if(e.key==='Enter'&&e.target.value.trim()){setAiChatMessages(prev=>[...prev,{role:'user',text:e.target.value}]);e.target.value='';setTimeout(()=>setAiChatMessages(prev=>[...prev,{role:'agent',text:'Выберите товар в таблице и нажмите 🤖 для детального AI-анализа.'}]),500)}}} />
+            <input className="ai-chat-input" placeholder="Спросите про товар..." onKeyDown={e=>{if(e.key==='Enter'&&e.target.value.trim()){setAiChatMessages(prev=>[...prev,{role:'user',text:e.target.value}]);e.target.value='';setTimeout(()=>setAiChatMessages(prev=>[...prev,{role:'agent',text:'Выберите товар в таблице и нажмите AI для анализа.'}]),500)}}} />
           </div>
         )}
       </div>
