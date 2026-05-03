@@ -9,6 +9,15 @@ function App() {
   const [aiTip, setAiTip] = useState('🧠 Нажми "AI Анализ" для прогноза и рекомендаций')
   const [loading, setLoading] = useState(false)
   const [forecast, setForecast] = useState(null)
+  const [anomalies, setAnomalies] = useState(null)
+  const [seasonality, setSeasonality] = useState(null)
+  const [theme, setTheme] = useState('light')
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light'
+    setTheme(newTheme)
+    document.documentElement.setAttribute('data-theme', newTheme)
+  }
 
   const chartData = data.map((v, i) => ({ день: i + 1, продажи: v }))
 
@@ -60,12 +69,14 @@ function App() {
       if (result.advice) {
         setAiTip(result.advice)
         if (result.forecast) setForecast(result.forecast)
+        if (result.anomalies) setAnomalies(result.anomalies)
+        if (result.seasonality) setSeasonality(result.seasonality)
       } else {
         setAiTip('❌ Ошибка: ' + (result.error || 'неизвестная ошибка'))
       }
     } catch (error) {
       console.error('Ошибка:', error)
-      setAiTip('❌ Ошибка соединения. Запусти node server.js')
+      setAiTip('❌ Ошибка соединения с сервером. Запусти node server.js')
     }
     
     setLoading(false)
@@ -73,6 +84,10 @@ function App() {
 
   return (
     <div className="dashboard">
+      <button className="theme-toggle" onClick={toggleTheme}>
+        {theme === 'light' ? '🌙' : '☀️'}
+      </button>
+
       <div className="header">
         <h1>🤖 AI Аналитик Дашборд + GigaChat</h1>
         <p>Загрузи данные, AI проанализирует и даст прогноз</p>
@@ -121,27 +136,47 @@ function App() {
         <div className="chart-title">📈 Динамика продаж</div>
         <ResponsiveContainer width="100%" height={350}>
           <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-            <XAxis dataKey="день" stroke="rgba(255,255,255,0.5)" />
-            <YAxis stroke="rgba(255,255,255,0.5)" />
-            <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', border: '1px solid #00ffc3' }} />
-            <Legend wrapperStyle={{ color: 'white' }} />
-            <Line type="monotone" dataKey="продажи" stroke="#00ffc3" strokeWidth={2} dot={{ fill: '#00ffc3', r: 4 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? '#ccc' : 'rgba(255,255,255,0.1)'} />
+            <XAxis dataKey="день" stroke={theme === 'light' ? '#666' : 'rgba(255,255,255,0.5)'} />
+            <YAxis stroke={theme === 'light' ? '#666' : 'rgba(255,255,255,0.5)'} />
+            <Tooltip contentStyle={{ backgroundColor: theme === 'light' ? '#fff' : '#1a1a2e', border: '1px solid #667eea' }} />
+            <Legend wrapperStyle={{ color: theme === 'light' ? '#333' : '#fff' }} />
+            <Line type="monotone" dataKey="продажи" stroke="#667eea" strokeWidth={2} dot={{ fill: '#667eea', r: 4 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
       {forecast && (
-        <div className="glass-card" style={{ marginBottom: 20, textAlign: 'center' }}>
+        <div className="glass-card" style={{ marginBottom: 20, textAlign: 'center', padding: 20, borderRadius: 20, background: 'var(--card-bg)' }}>
           <div className="stat-icon">📈 ПРОГНОЗ НА 3 ДНЯ</div>
           <div style={{ display: 'flex', gap: 20, justifyContent: 'center', marginTop: 10 }}>
             {forecast.map((f, i) => (
               <div key={i}>
-                <div style={{ fontSize: 24, fontWeight: 'bold', color: '#00ffc3' }}>{f}</div>
-                <div style={{ fontSize: 12, color: '#aaa' }}>День {i + 1}</div>
+                <div style={{ fontSize: 24, fontWeight: 'bold', color: '#667eea' }}>{f}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>День {i + 1}</div>
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {anomalies && anomalies.length > 0 && (
+        <div className="glass-card" style={{ marginBottom: 20, textAlign: 'center', padding: 20, borderRadius: 20, background: 'var(--card-bg)' }}>
+          <div className="stat-icon">⚠️ АНОМАЛИИ</div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {anomalies.map((a, i) => (
+              <div key={i} style={{ background: '#ff4444', padding: '8px 16px', borderRadius: 20, color: 'white' }}>
+                День {a.day}: {a.value}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {seasonality && (
+        <div className="glass-card" style={{ marginBottom: 20, textAlign: 'center', padding: 20, borderRadius: 20, background: 'var(--card-bg)' }}>
+          <div className="stat-icon">📅 СЕЗОННОСТЬ</div>
+          <div style={{ marginTop: 10 }}>{seasonality}</div>
         </div>
       )}
 
