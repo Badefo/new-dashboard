@@ -6,24 +6,29 @@ import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import './App.css'
 
+// ПУСТОЙ ШАБЛОН — пользователь сам загрузит свои товары
+const defaultItems = [
+  { id: 1, name: 'Пример товара 1', unit: 'шт', stock: 100, leadTime: 5, minStock: 20, consumption: [10,12,11,13,10,12,11], price: 500 },
+  { id: 2, name: 'Пример товара 2', unit: 'уп', stock: 50, leadTime: 3, minStock: 15, consumption: [5,6,5,7,6,5,5], price: 300 },
+]
+
+const defaultSuppliers = [
+  { name: 'Поставщик А', itemId: 1, price: 500, deliveryDays: 5, reliability: 0.95 },
+  { name: 'Поставщик Б', itemId: 1, price: 520, deliveryDays: 4, reliability: 0.92 },
+]
+
 function App() {
-  const [data, setData] = useState([12, 19, 15, 17, 24, 23, 28])
-  const [aiTip, setAiTip] = useState('🧠 Нажми "AI Анализ"')
+  const [items, setItems] = useState(defaultItems)
+  const [suppliers, setSuppliers] = useState(defaultSuppliers)
+  const [aiTip, setAiTip] = useState('🧠 Нажми "AI Анализ товара"')
   const [loading, setLoading] = useState(false)
-  const [forecast, setForecast] = useState(null)
-  const [anomalies, setAnomalies] = useState(null)
-  const [seasonality, setSeasonality] = useState(null)
+  const [activeTab, setActiveTab] = useState('stock')
+  const [selectedItem, setSelectedItem] = useState(null)
   const [theme, setTheme] = useState('light')
-  const [activeDashboard, setActiveDashboard] = useState('sales')
-  const [bitcoinData, setBitcoinData] = useState([])
-  const [weatherData, setWeatherData] = useState([])
-  const [btcLoading, setBtcLoading] = useState(false)
-  const [weatherLoading, setWeatherLoading] = useState(false)
-  const [chartType, setChartType] = useState('line')
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [history, setHistory] = useState([])
+  const [orders, setOrders] = useState([])
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'
@@ -31,43 +36,21 @@ function App() {
     document.documentElement.setAttribute('data-theme', newTheme)
   }
 
-  const fetchBitcoinData = async () => {
-    setBtcLoading(true)
-    try {
-      const response = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=7')
-      const result = await response.json()
-      const prices = result.prices.slice(-7).map((item) => Math.round(item[1]))
-      setBitcoinData(prices)
-      setAiTip('📊 Данные биткоина загружены!')
-    } catch (error) {
-      setAiTip('❌ Ошибка загрузки биткоина')
-    }
-    setBtcLoading(false)
+  const avgConsumption = (consumption) => consumption.reduce((a,b)=>a+b,0)/consumption.length
+  const weeklyForecast = (item) => Math.round(avgConsumption(item.consumption) * 7)
+  const reorderPoint = (item) => Math.round(avgConsumption(item.consumption) * item.leadTime + item.minStock)
+  const recommendedOrder = (item) => {
+    const forecast = weeklyForecast(item)
+    const need = forecast + item.minStock
+    return Math.max(0, need - item.stock)
+  }
+  const getStatus = (item) => {
+    if (item.stock <= reorderPoint(item)) return 'danger'
+    if (item.stock <= reorderPoint(item) * 1.3) return 'warning'
+    return 'normal'
   }
 
-  const fetchWeatherData = async () => {
-    setWeatherLoading(true)
-    try {
-      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=55.75&longitude=37.62&daily=temperature_2m_max&timezone=Europe/Moscow&days=7')
-      const result = await response.json()
-      const temps = result.daily.temperature_2m_max.map(t => Math.round(t))
-      setWeatherData(temps)
-      setAiTip('🌡️ Данные погоды загружены!')
-    } catch (error) {
-      setAiTip('❌ Ошибка загрузки погоды')
-    }
-    setWeatherLoading(false)
-  }
-
-  useEffect(() => {
-    if (activeDashboard === 'bitcoin' && bitcoinData.length === 0) fetchBitcoinData()
-    if (activeDashboard === 'weather' && weatherData.length === 0) fetchWeatherData()
-  }, [activeDashboard])
-
-  const currentData = activeDashboard === 'sales' ? data : activeDashboard === 'bitcoin' ? bitcoinData : weatherData
-  const currentChartData = currentData.map((v, i) => ({ день: i + 1, продажи: v }))
-
-  const handleUpload = (e) => {
+  const handleFileUpload = (e) => {
     const file = e.target.files[0]
     if (!file) return
     const reader = new FileReader()
@@ -75,17 +58,47 @@ function App() {
       const wb = XLSX.read(ev.target.result, { type: 'array' })
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 })
-      const numbers = rows.flat().filter(v => typeof v === 'number')
-      if (numbers.length) setData(numbers.slice(0, 14))
+      if (rows.length < 2) return
+      const headers = rows[0]
+      const newItems = rows.slice(1).map((row, idx) => ({
+        id: idx + 1,
+        name: row[0] || 'Товар',
+        unit: row[1] || 'шт',
+        stock: Number(row[2]) || 0,
+        leadTime: Number(row[3]) || 1,
+        minStock: Number(row[4]) || 10,
+        consumption: [Number(row[5]) || 10, Number(row[6]) || 10, Number(row[7]) || 10, Number(row[8]) || 10, Number(row[9]) || 10, Number(row[10]) || 10, Number(row[11]) || 10],
+        price: Number(row[12]) || 0
+      }))
+      setItems(newItems)
+      setAiTip(`✅ Загружено ${newItems.length} товаров`)
     }
     reader.readAsArrayBuffer(file)
   }
 
   const exportExcel = () => {
-    const ws = XLSX.utils.aoa_to_sheet([['День', 'Значение'], ...currentData.map((v, i) => [i + 1, v])])
+    const wsData = [['Наименование', 'Ед', 'Остаток', 'Срок поставки', 'Мин. остаток', 'Расход за 7 дней', 'Цена']]
+    items.forEach(item => {
+      wsData.push([item.name, item.unit, item.stock, item.leadTime, item.minStock, item.consumption.join(','), item.price])
+    })
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Отчет')
-    XLSX.writeFile(wb, `report_${Date.now()}.xlsx`)
+    XLSX.utils.book_append_sheet(wb, ws, 'Товары')
+    XLSX.writeFile(wb, `inventory_${Date.now()}.xlsx`)
+  }
+
+  const exportOrder = () => {
+    const orderItems = items.filter(item => recommendedOrder(item) > 0).map(item => ({
+      Наименование: item.name,
+      Рекомендуемый_заказ: recommendedOrder(item),
+      Ед: item.unit,
+      Цена: item.price,
+      Сумма: recommendedOrder(item) * item.price
+    }))
+    const ws = XLSX.utils.json_to_sheet(orderItems)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Заказ')
+    XLSX.writeFile(wb, `order_${Date.now()}.xlsx`)
   }
 
   const exportToPDF = async () => {
@@ -96,54 +109,73 @@ function App() {
     const imgWidth = 210
     const imgHeight = (canvas.height * imgWidth) / canvas.width
     pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight)
-    pdf.save(`analytics_${Date.now()}.pdf`)
+    pdf.save(`procurement_${Date.now()}.pdf`)
   }
 
-  const analyzeWithGigaChat = async () => {
+  const analyzeItem = async () => {
+    if (!selectedItem) {
+      setAiTip('❌ Выберите товар для анализа')
+      return
+    }
     setLoading(true)
-    setAiTip('🤔 GigaChat анализирует данные...')
+    setAiTip('🤔 GigaChat анализирует...')
 
-    const avg = (currentData.reduce((a, b) => a + b, 0) / currentData.length).toFixed(1)
-    const maxValue = Math.max(...currentData)
-    const minValue = Math.min(...currentData)
-    const trend = currentData[currentData.length - 1] > currentData[0] ? 'рост' : 'падение'
-    const dataType = activeDashboard === 'sales' ? 'продажи' : activeDashboard === 'bitcoin' ? 'цена биткоина' : 'температура'
+    const avg = avgConsumption(selectedItem.consumption).toFixed(1)
+    const forecast = weeklyForecast(selectedItem)
+    const reorder = reorderPoint(selectedItem)
+    const recommend = recommendedOrder(selectedItem)
+    const itemSuppliers = suppliers.filter(s => s.itemId === selectedItem.id)
+
+    const prompt = `Ты эксперт по управлению запасами.
+Товар: ${selectedItem.name}
+Средний расход в день: ${avg}
+Текущий остаток: ${selectedItem.stock}
+Точка заказа (мин. остаток): ${reorder}
+Срок поставки: ${selectedItem.leadTime} дней
+Прогноз на неделю: ${forecast}
+Рекомендуемый заказ: ${recommend}
+Доступные поставщики: ${itemSuppliers.map(s => `${s.name} (${s.price} руб, срок ${s.deliveryDays} дн)`).join('; ')}
+
+Напиши рекомендации:
+1. Нужно ли срочно заказывать?
+2. Сколько заказать?
+3. Какого поставщика выбрать?
+4. Какие риски?`
 
     try {
       const response = await fetch('https://gigachat-proxy-ili-liuboe-drugoe.onrender.com/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ salesData: currentData, avg, max: maxValue, min: minValue, trend, dataType }),
+        body: JSON.stringify({ salesData: selectedItem.consumption, avg, max: Math.max(...selectedItem.consumption), min: Math.min(...selectedItem.consumption), trend: 'нейтральный', dataType: selectedItem.name }),
       })
       const result = await response.json()
-      if (result.advice) {
-        setAiTip(result.advice)
-        if (result.forecast) setForecast(result.forecast)
-        if (result.anomalies) setAnomalies(result.anomalies)
-        if (result.seasonality) setSeasonality(result.seasonality)
-        const newHistory = [{ date: new Date().toLocaleString(), dataType, data: currentData, analysis: result.advice }, ...history].slice(0, 10)
-        setHistory(newHistory)
-        localStorage.setItem('analytics_history', JSON.stringify(newHistory))
+      setAiTip(result.advice || '✅ Анализ завершён')
+      if (recommend > 0) {
+        const newOrder = { item: selectedItem.name, quantity: recommend, date: new Date().toLocaleString(), status: 'рекомендовано' }
+        setOrders([newOrder, ...orders].slice(0, 20))
+        localStorage.setItem('procurement_orders', JSON.stringify([newOrder, ...orders].slice(0, 20)))
       }
     } catch (error) {
-      setAiTip('❌ Ошибка соединения')
+      setAiTip('❌ Ошибка соединения с AI')
     }
     setLoading(false)
   }
+
+  useEffect(() => {
+    const savedOrders = localStorage.getItem('procurement_orders')
+    if (savedOrders) setOrders(JSON.parse(savedOrders))
+  }, [])
 
   if (!isLoggedIn) {
     return (
       <div className="login-container">
         <div className="login-card">
-          <h2>🔐 AI Дашборд</h2>
+          <h2>🔐 Управление запасами</h2>
           <input type="text" placeholder="Логин" value={username} onChange={(e) => setUsername(e.target.value)} />
           <input type="password" placeholder="Пароль" value={password} onChange={(e) => setPassword(e.target.value)} />
           <button onClick={() => {
-            if (username === 'admin' && password === '123') {
-              setIsLoggedIn(true)
-              const saved = localStorage.getItem('analytics_history')
-              if (saved) setHistory(JSON.parse(saved))
-            } else alert('Неверный логин или пароль (admin/123)')
+            if (username === 'admin' && password === '123') setIsLoggedIn(true)
+            else alert('Неверный логин или пароль (admin/123)')
           }}>Войти</button>
         </div>
       </div>
@@ -156,59 +188,86 @@ function App() {
       <button className="logout-btn" onClick={() => setIsLoggedIn(false)}>🚪 Выйти</button>
 
       <div className="header">
-        <h1>🤖 AI Аналитик Дашборд + GigaChat</h1>
-        <p>Загрузи данные или выбери реальный источник</p>
+        <h1>📦 Управление запасами и закупками</h1>
+        <p>Универсальная система для любого бизнеса</p>
       </div>
 
-      <div className="dashboard-tabs">
-        <button className={`tab-btn ${activeDashboard === 'sales' ? 'active' : ''}`} onClick={() => setActiveDashboard('sales')}>📊 Мои продажи</button>
-        <button className={`tab-btn ${activeDashboard === 'bitcoin' ? 'active' : ''}`} onClick={() => setActiveDashboard('bitcoin')}>₿ Биткоин 7 дней</button>
-        <button className={`tab-btn ${activeDashboard === 'weather' ? 'active' : ''}`} onClick={() => setActiveDashboard('weather')}>🌤️ Погода Москва</button>
+      <div className="procurement-tabs">
+        <button className={`tab-btn ${activeTab === 'stock' ? 'active' : ''}`} onClick={() => setActiveTab('stock')}>📦 Товары / Остатки</button>
+        <button className={`tab-btn ${activeTab === 'orders' ? 'active' : ''}`} onClick={() => setActiveTab('orders')}>🛒 Рекомендации по закупке</button>
+        <button className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>📜 История заказов</button>
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card"><div className="stat-icon">📊</div><div className="stat-value">{(currentData.reduce((a, b) => a + b, 0) / currentData.length).toFixed(1)}</div><div className="stat-label">Среднее</div></div>
-        <div className="stat-card"><div className="stat-icon">📈</div><div className="stat-value">{Math.max(...currentData)}</div><div className="stat-label">Максимум</div></div>
-        <div className="stat-card"><div className="stat-icon">📉</div><div className="stat-value">{Math.min(...currentData)}</div><div className="stat-label">Минимум</div></div>
-        <div className="stat-card"><div className="stat-icon">📐</div><div className="stat-value">{Math.max(...currentData) - Math.min(...currentData)}</div><div className="stat-label">Размах</div></div>
+      <div className="procurement-controls">
+        <label className="btn">📂 Загрузить Excel (Товары)<input type="file" accept=".xlsx,.csv" onChange={handleFileUpload} hidden /></label>
+        <button className="btn" onClick={exportExcel}>💾 Excel (Товары)</button>
+        <button className="btn" onClick={exportOrder}>📄 Excel (Заказ)</button>
+        <button className="btn" onClick={exportToPDF}>📄 PDF (Отчёт)</button>
       </div>
 
-      <div className="chart-type-switch">
-        <button className={`chart-type-btn ${chartType === 'line' ? 'active' : ''}`} onClick={() => setChartType('line')}>📈 Линия</button>
-        <button className={`chart-type-btn ${chartType === 'bar' ? 'active' : ''}`} onClick={() => setChartType('bar')}>📊 Столбцы</button>
-        <button className={`chart-type-btn ${chartType === 'area' ? 'active' : ''}`} onClick={() => setChartType('area')}>🌊 Область</button>
-      </div>
+      {activeTab === 'stock' && (
+        <div className="stock-table">
+          <h3>📋 Складские остатки <span style={{ fontSize: 12, color: '#888' }}>(Выберите товар для AI-анализа)</span></h3>
+          <table className="procurement-table">
+            <thead><tr><th>Товар</th><th>Ед</th><th>Остаток</th><th>Мин. остаток</th><th>Прогноз на неделю</th><th>Статус</th><th>Действие</th></tr></thead>
+            <tbody>
+              {items.map(item => {
+                const status = getStatus(item)
+                return (
+                  <tr key={item.id} className={selectedItem?.id === item.id ? 'selected-row' : ''}>
+                    <td>{item.name}</td><td>{item.unit}</td><td className={status === 'danger' ? 'danger' : status === 'warning' ? 'warning' : ''}>{item.stock}</td>
+                    <td>{reorderPoint(item)}</td><td>{weeklyForecast(item)}</td>
+                    <td>{status === 'danger' ? '🔴 Срочно' : status === 'warning' ? '🟡 Планово' : '🟢 Норма'}</td>
+                    <td><button className="small-btn" onClick={() => setSelectedItem(item)}>Выбрать</button></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          {selectedItem && (
+            <div className="selected-item-panel">
+              <h4>🧠 AI анализ: {selectedItem.name}</h4>
+              <button className="btn" onClick={analyzeItem} disabled={loading}>{loading ? '⏳ Анализ...' : '🤖 Запустить AI анализ'}</button>
+              <div className="ai-result"><strong>Рекомендация:</strong> {aiTip}</div>
+            </div>
+          )}
+        </div>
+      )}
 
-      <div className="controls">
-        {activeDashboard === 'sales' && (<label className="btn">📂 Загрузить файл<input type="file" accept=".xlsx,.csv" onChange={handleUpload} hidden /></label>)}
-        {activeDashboard === 'bitcoin' && (<button className="btn" onClick={fetchBitcoinData} disabled={btcLoading}>{btcLoading ? '⏳...' : '🔄 BTC'}</button>)}
-        {activeDashboard === 'weather' && (<button className="btn" onClick={fetchWeatherData} disabled={weatherLoading}>{weatherLoading ? '⏳...' : '🔄 Погода'}</button>)}
-        <button className="btn" onClick={() => { if (activeDashboard === 'sales') setData(data.map(() => Math.floor(Math.random() * 50) + 10)) }}>🎲 Случайные</button>
-        <button className="btn" onClick={exportExcel}>💾 Excel</button>
-        <button className="btn" onClick={exportToPDF}>📄 PDF</button>
-        <button className="btn btn-primary" onClick={analyzeWithGigaChat} disabled={loading}>{loading ? '⏳ Думаю...' : '🧠 AI Анализ'}</button>
-      </div>
+      {activeTab === 'orders' && (
+        <div className="orders-table">
+          <h3>🛒 Что заказать</h3>
+          <table className="procurement-table">
+            <thead><tr><th>Товар</th><th>Остаток</th><th>Прогноз</th><th>Точка заказа</th><th>Рекомендуемый заказ</th><th>Статус</th></tr></thead>
+            <tbody>
+              {items.filter(item => recommendedOrder(item) > 0).map(item => (
+                <tr key={item.id} className="order-row">
+                  <td>{item.name}</td><td>{item.stock}</td><td>{weeklyForecast(item)}</td><td>{reorderPoint(item)}</td>
+                  <td className="order-qty">{recommendedOrder(item)} {item.unit}</td>
+                  <td>🔴 Срочная закупка</td>
+                </tr>
+              ))}
+              {items.filter(item => recommendedOrder(item) === 0).map(item => (
+                <tr key={item.id}><td>{item.name}</td><td>{item.stock}</td><td>{weeklyForecast(item)}</td><td>{reorderPoint(item)}</td><td>0</td><td>🟢 Норма</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      <div className="chart-container">
-        <ResponsiveContainer width="100%" height={350}>
-          {chartType === 'line' && <LineChart data={currentChartData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="день" /><YAxis /><Tooltip /><Legend /><Line type="monotone" dataKey="продажи" stroke="#667eea" strokeWidth={2} dot={{ r: 4 }} /></LineChart>}
-          {chartType === 'bar' && <BarChart data={currentChartData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="день" /><YAxis /><Tooltip /><Legend /><Bar dataKey="продажи" fill="#667eea" radius={[8,8,0,0]} /></BarChart>}
-          {chartType === 'area' && <AreaChart data={currentChartData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="день" /><YAxis /><Tooltip /><Legend /><Area type="monotone" dataKey="продажи" stroke="#667eea" fill="rgba(102,126,234,0.2)" /></AreaChart>}
-        </ResponsiveContainer>
-      </div>
+      {activeTab === 'history' && (
+        <div className="history-section">
+          <h3>📜 История рекомендаций</h3>
+          {orders.length === 0 && <p>Пока нет истории. Запустите AI анализ для товара.</p>}
+          {orders.map((order, idx) => (
+            <div key={idx} className="history-item">
+              <strong>{order.date}</strong> — {order.item}: заказать {order.quantity} шт
+            </div>
+          ))}
+        </div>
+      )}
 
-      {forecast && (<div className="glass-card"><div className="stat-icon">📈 ПРОГНОЗ НА 3 ДНЯ</div><div style={{ display: 'flex', gap: 20, justifyContent: 'center' }}>{forecast.map((f, i) => (<div key={i}><div style={{ fontSize: 24, fontWeight: 'bold' }}>{f}</div><div>День {i + 1}</div></div>))}</div></div>)}
-      {anomalies && anomalies.length > 0 && (<div className="glass-card"><div className="stat-icon">⚠️ АНОМАЛИИ</div><div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>{anomalies.map((a, i) => (<div key={i} style={{ background: '#ff4444', padding: '8px 16px', borderRadius: 20, color: 'white' }}>День {a.day}: {a.value}</div>))}</div></div>)}
-      {seasonality && (<div className="glass-card"><div className="stat-icon">📅 СЕЗОННОСТЬ</div><div>{seasonality}</div></div>)}
-
-      <div className="ai-card">
-        <div className="ai-header"><div className="ai-icon"><span>🧠</span></div><div className="ai-title">Анализ GigaChat</div></div>
-        <div className="ai-content">{loading ? <div className="loading"><div className="spinner"></div><span>Анализирую...</span></div> : aiTip.split('\n').map((line, i) => <p key={i}>{line}</p>)}</div>
-      </div>
-
-      {history.length > 0 && (<div className="history-card"><h3>📜 История анализов</h3>{history.map((item, i) => (<div key={i} className="history-item"><strong>{item.date}</strong> — {item.dataType}: {item.analysis.substring(0, 100)}...</div>))}</div>)}
-
-      <div className="footer">AI Дашборд — полная аналитика</div>
+      <div className="footer">Универсальная система управления запасами — подходит для любого бизнеса</div>
     </div>
   )
 }
